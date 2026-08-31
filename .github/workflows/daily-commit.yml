@@ -1,31 +1,70 @@
-name: Daily Commit
+name: Automated Streak Keeper
 
 on:
   schedule:
-    - cron: '30 2 * * *'  # Runs daily at 02:30 UTC
-  workflow_dispatch:  # Allows manual triggering
+    # Runs twice daily at 04:00 UTC (09:30 AM IST) and 16:00 UTC (09:30 PM IST)
+    - cron: '0 4,16 * * *'
+  workflow_dispatch: # Allows manual trigger anytime from the GitHub Actions tab
 
 permissions:
-  contents: write  # Ensure GitHub Actions can push changes
+  contents: write # Ensure workflow has permission to push commits
+
+concurrency:
+  group: streak-keeper
+  cancel-in-progress: false
 
 jobs:
-  commit:
+  streak-commit:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Configure Git (23f2003002@ds.study.iitm.ac.in)
+      - name: Configure Git Author
         run: |
-          git config --global user.name "GitHub Action"
-          git config --global user.email "23f2003002@ds.study.iitm.ac.in"
+          # Priority: Repository Secret > Repository Variable > Default Email
+          USER_NAME="${{ secrets.GIT_USER_NAME || vars.GIT_USER_NAME || github.actor }}"
+          USER_EMAIL="${{ secrets.GIT_USER_EMAIL || vars.GIT_USER_EMAIL || 'iitainsomraj701@gmail.com' }}"
+          
+          git config --global user.name "$USER_NAME"
+          git config --global user.email "$USER_EMAIL"
+          echo "Configured author as $USER_NAME <$USER_EMAIL>"
 
-      - name: Make a Change
+      - name: Update Activity and Timestamp
         run: |
-          echo "Last run: $(date)" > last_run.txt  # Always modify the file
+          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          cat <<EOF > last_run.txt
+========================================
+🔥 GitHub Streak Keeper Activity Record
+========================================
+Last Automated Run : $TIMESTAMP
+Triggered By       : ${{ github.event_name }}
+Workflow Run ID    : ${{ github.run_id }}
+Repository         : ${{ github.repository }}
+Status             : Active & Synced
+========================================
+EOF
 
       - name: Commit and Push Changes
         run: |
           git add last_run.txt
-          git commit -m "Automated daily commit at $(date)" || echo "No changes to commit"
-          git push
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            MESSAGES=(
+              "📈 Auto-update streak record: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+              "⚡ Daily streak synchronization: $(date -u +'%Y-%m-%d')"
+              "🔥 Streak keeper active: $(date -u +'%Y-%m-%d %H:%M UTC')"
+              "✨ Activity ping: $(date -u +'%Y-%m-%d')"
+            )
+            RANDOM_MSG="${MESSAGES[$RANDOM % ${#MESSAGES[@]}]}"
+            
+            git commit -m "$RANDOM_MSG"
+            git pull --rebase origin main
+            git push origin main
+          fi
