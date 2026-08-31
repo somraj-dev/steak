@@ -7,11 +7,7 @@ on:
   workflow_dispatch: # Allows manual trigger anytime from the GitHub Actions tab
 
 permissions:
-  contents: write # Ensure workflow has permission to push commits
-
-concurrency:
-  group: streak-keeper
-  cancel-in-progress: false
+  contents: write
 
 jobs:
   streak-commit:
@@ -21,17 +17,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure Git Author
         run: |
-          # Priority: Repository Secret > Repository Variable > Default Email
-          USER_NAME="${{ secrets.GIT_USER_NAME || vars.GIT_USER_NAME || github.actor }}"
-          USER_EMAIL="${{ secrets.GIT_USER_EMAIL || vars.GIT_USER_EMAIL || 'iitainsomraj701@gmail.com' }}"
-          
-          git config --global user.name "$USER_NAME"
-          git config --global user.email "$USER_EMAIL"
-          echo "Configured author as $USER_NAME <$USER_EMAIL>"
+          git config --global user.name "somraj-dev"
+          git config --global user.email "iitainsomraj701@gmail.com"
 
       - name: Update Activity and Timestamp
         run: |
@@ -52,19 +42,9 @@ EOF
       - name: Commit and Push Changes
         run: |
           git add last_run.txt
-          
           if git diff --staged --quiet; then
             echo "No changes to commit."
           else
-            MESSAGES=(
-              "📈 Auto-update streak record: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
-              "⚡ Daily streak synchronization: $(date -u +'%Y-%m-%d')"
-              "🔥 Streak keeper active: $(date -u +'%Y-%m-%d %H:%M UTC')"
-              "✨ Activity ping: $(date -u +'%Y-%m-%d')"
-            )
-            RANDOM_MSG="${MESSAGES[$RANDOM % ${#MESSAGES[@]}]}"
-            
-            git commit -m "$RANDOM_MSG"
-            git pull --rebase origin main
-            git push origin main
+            git commit -m "Automated streak update: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+            git push
           fi
