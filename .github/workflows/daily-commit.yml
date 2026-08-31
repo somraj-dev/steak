@@ -4,6 +4,11 @@ on:
   schedule:
     # Runs twice daily at 04:00 UTC (09:30 AM IST) and 16:00 UTC (09:30 PM IST)
     - cron: '0 4,16 * * *'
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'last_run.txt'
   workflow_dispatch:
 
 permissions:
@@ -16,7 +21,13 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           ref: main
+
+      - name: Configure Git Author
+        run: |
+          git config --global user.name "somraj-dev"
+          git config --global user.email "iitainsomraj701@gmail.com"
 
       - name: Update Activity Timestamp
         run: |
@@ -36,9 +47,6 @@ EOF
 
       - name: Commit and Push Changes
         run: |
-          git config --global user.name "somraj-dev"
-          git config --global user.email "iitainsomraj701@gmail.com"
-          
           git add last_run.txt
           git commit -m "Automated streak update: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" || echo "No changes to commit"
           git push origin main
