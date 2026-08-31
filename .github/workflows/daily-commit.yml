@@ -4,11 +4,6 @@ on:
   schedule:
     # Runs twice daily at 04:00 UTC (09:30 AM IST) and 16:00 UTC (09:30 PM IST)
     - cron: '0 4,16 * * *'
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - 'last_run.txt'
   workflow_dispatch:
 
 permissions:
@@ -24,29 +19,21 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: main
 
-      - name: Configure Git Author
+      - name: Update Activity and Commit
         run: |
           git config --global user.name "somraj-dev"
           git config --global user.email "iitainsomraj701@gmail.com"
-
-      - name: Update Activity Timestamp
-        run: |
-          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
           
-          cat <<EOF > last_run.txt
-========================================
-🔥 GitHub Streak Keeper Activity Record
-========================================
-Last Automated Run : $TIMESTAMP
-Triggered By       : ${{ github.event_name }}
-Workflow Run ID    : ${{ github.run_id }}
-Repository         : ${{ github.repository }}
-Status             : Active & Synced
-========================================
-EOF
-
-      - name: Commit and Push Changes
-        run: |
+          echo "========================================" > last_run.txt
+          echo "🔥 GitHub Streak Keeper Activity Record" >> last_run.txt
+          echo "========================================" >> last_run.txt
+          echo "Last Automated Run : $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> last_run.txt
+          echo "Triggered By       : ${{ github.event_name }}" >> last_run.txt
+          echo "Workflow Run ID    : ${{ github.run_id }}" >> last_run.txt
+          echo "Repository         : ${{ github.repository }}" >> last_run.txt
+          echo "Status             : Active & Synced" >> last_run.txt
+          echo "========================================" >> last_run.txt
+          
           git add last_run.txt
           git commit -m "Automated streak update: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" || echo "No changes to commit"
           git push origin main
