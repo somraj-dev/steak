@@ -2,8 +2,9 @@ name: Automated Streak Keeper
 
 on:
   schedule:
-    # Runs twice daily at 04:00 UTC (09:30 AM IST) and 16:00 UTC (09:30 PM IST)
-    - cron: '0 4,16 * * *'
+    # Distributed across 8 scheduled intervals per day at odd minutes
+    # (01:17, 04:17, 07:17, 10:17, 13:17, 16:17, 19:17, 22:17 UTC)
+    - cron: '17 1,4,7,10,13,16,19,22 * * *'
   workflow_dispatch:
 
 permissions:
@@ -19,21 +20,31 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: main
 
-      - name: Update Activity and Commit
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Apply Random Timing Jitter
+        if: github.event_name == 'schedule'
+        run: |
+          # Sleep a random duration (between 30s and 900s / 15 minutes) to ensure natural, unpredictable timestamps
+          JITTER=$((RANDOM % 870 + 30))
+          echo "Applying random timing jitter of ${JITTER} seconds..."
+          sleep $JITTER
+
+      - name: Evaluate Streak Decision
+        id: manager
+        run: |
+          python streak_manager.py --event "${{ github.event_name }}"
+
+      - name: Commit and Push Changes
+        if: steps.manager.outputs.should_commit == 'true'
         run: |
           git config --global user.name "somraj-dev"
           git config --global user.email "iitainsomraj701@gmail.com"
           
-          echo "========================================" > last_run.txt
-          echo "🔥 GitHub Streak Keeper Activity Record" >> last_run.txt
-          echo "========================================" >> last_run.txt
-          echo "Last Automated Run : $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> last_run.txt
-          echo "Triggered By       : ${{ github.event_name }}" >> last_run.txt
-          echo "Workflow Run ID    : ${{ github.run_id }}" >> last_run.txt
-          echo "Repository         : ${{ github.repository }}" >> last_run.txt
-          echo "Status             : Active & Synced" >> last_run.txt
-          echo "========================================" >> last_run.txt
-          
-          git add last_run.txt
-          git commit -m "Automated streak update: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" || echo "No changes to commit"
+          git add last_run.txt activity_state.json
+          git commit -m "${{ steps.manager.outputs.commit_message }}"
+          git pull --rebase origin main
           git push origin main
