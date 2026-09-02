@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Automated GitHub Streak Keeper - Randomization & Decision Engine
-Manages randomized daily commit quotas (2-5 commits/day) and randomized timing.
+Strictly maintains 2 to 5 commits per day during natural programmer working hours.
 """
 
 import os
@@ -14,8 +14,9 @@ from datetime import datetime, timezone
 STATE_FILE = "activity_state.json"
 STATUS_FILE = "last_run.txt"
 
-# Scheduled trigger hours in UTC (matching GitHub Actions workflow cron)
-SCHEDULED_UTC_HOURS = [1, 4, 7, 10, 13, 16, 19, 22]
+# 5 Active daytime/evening windows in UTC (09:15 AM to 11:15 PM IST)
+# 03:45 UTC (09:15 AM IST), 07:45 UTC (01:15 PM IST), 11:45 UTC (05:15 PM IST), 14:45 UTC (08:15 PM IST), 17:45 UTC (11:15 PM IST)
+SCHEDULED_UTC_HOURS = [3, 7, 11, 14, 17]
 
 COMMIT_MESSAGE_TEMPLATES = [
     "chore: streak activity update [{timestamp}]",
@@ -53,9 +54,9 @@ def get_or_init_daily_state(state, now_utc):
     
     # Check if we need to reset for a new day
     if state.get("current_date") != today_str:
-        # Pick a random target between 2 and 5 commits for today
-        # Weighting: 2 (25%), 3 (35%), 4 (25%), 5 (15%)
-        daily_target = random.choices([2, 3, 4, 5], weights=[25, 35, 25, 15])[0]
+        # Strictly pick a random target between 2 and 5 commits for today (natural programmer distribution)
+        # Weights: 2 commits (35%), 3 commits (40%), 4 commits (15%), 5 commits (10%)
+        daily_target = random.choices([2, 3, 4, 5], weights=[35, 40, 15, 10])[0]
         
         state["current_date"] = today_str
         state["daily_target"] = daily_target
@@ -68,31 +69,31 @@ def get_or_init_daily_state(state, now_utc):
 
 
 def decide_commit(state, now_utc, force=False):
-    if force:
-        return True, "Forced run (workflow_dispatch or manual trigger)"
-
     commits_today = state.get("commits_today", 0)
     daily_target = state.get("daily_target", 3)
     remaining_slots = get_remaining_slots_today(now_utc)
     needed_commits = daily_target - commits_today
 
+    if force:
+        return True, "Forced run (workflow_dispatch or manual trigger)"
+
+    # Hard cap: Never exceed daily target (strictly between 2 and 5 per day)
     if commits_today >= daily_target:
-        return False, f"Daily target already reached ({commits_today}/{daily_target} commits today)"
+        return False, f"Daily limit reached ({commits_today}/{daily_target} commits today). Skipping."
 
     if needed_commits <= 0:
-        return False, f"Target fulfilled ({commits_today}/{daily_target})"
+        return False, f"Target fulfilled ({commits_today}/{daily_target}). Skipping."
 
-    # If remaining opportunities equal or are fewer than needed commits to reach minimum (or target),
-    # we MUST commit now to guarantee streak safety.
+    # Guarantee streak safety: if remaining slots are needed to hit the daily target, commit now
     if remaining_slots <= needed_commits:
-        return True, f"Guaranteed run (Remaining slots: {remaining_slots}, Needed commits: {needed_commits})"
+        return True, f"Guaranteed run to preserve streak (Remaining slots: {remaining_slots}, Needed: {needed_commits})"
 
-    # Otherwise, probabilistic decision (~65% chance per slot to create natural randomness)
+    # Probabilistic roll (~60% chance) to spread commits across available waking hours
     roll = random.random()
-    if roll < 0.65:
-        return True, f"Probabilistic roll passed (Roll: {roll:.2f} < 0.65, Progress: {commits_today}/{daily_target})"
+    if roll < 0.60:
+        return True, f"Probabilistic roll passed (Roll: {roll:.2f} < 0.60, Progress: {commits_today}/{daily_target})"
     else:
-        return False, f"Probabilistic roll deferred to later slot (Roll: {roll:.2f} >= 0.65, Slots remaining: {remaining_slots})"
+        return False, f"Skipped slot for organic spacing (Roll: {roll:.2f} >= 0.60, Slots remaining: {remaining_slots})"
 
 
 def generate_commit_message(date_str, timestamp_str, commits_today, daily_target):

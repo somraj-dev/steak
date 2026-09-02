@@ -2,9 +2,9 @@ name: Automated Streak Keeper
 
 on:
   schedule:
-    # Distributed across 8 scheduled intervals per day at odd minutes
-    # (01:17, 04:17, 07:17, 10:17, 13:17, 16:17, 19:17, 22:17 UTC)
-    - cron: '17 1,4,7,10,13,16,19,22 * * *'
+    # 5 natural daytime/evening windows (09:15 AM to 11:15 PM IST)
+    # 03:45 UTC (09:15 AM IST), 07:45 UTC (01:15 PM IST), 11:45 UTC (05:15 PM IST), 14:45 UTC (08:15 PM IST), 17:45 UTC (11:15 PM IST)
+    - cron: '45 3,7,11,14,17 * * *'
   workflow_dispatch:
 
 permissions:
